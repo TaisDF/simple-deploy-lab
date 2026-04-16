@@ -8,37 +8,43 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  # Removi a IMAGE_NAME daqui para definirmos dinamicamente no job
 
 jobs:
-  
   build-and-push:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' # SÓ GERA IMAGEM NO PUSH DA MAIN
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       packages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # ESTE PASSO NOVO RESOLVE O PROBLEMA
+      - name: Prepare Image Name
+        run: |
+          echo "IMAGE_NAME=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Log in to the Container registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
+          # Agora usamos a variável IMAGE_NAME que foi salva no GITHUB_ENV em minúsculo
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-  # JOB 3: ENTREGAR (O carteiro)
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' # SÓ DEPLOYA NO PUSH DA MAIN
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Deploy to Render
         run: curl -f ${{ secrets.RENDER_DEPLOY_HOOK }}
